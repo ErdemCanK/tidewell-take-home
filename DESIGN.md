@@ -2,9 +2,9 @@
 
 Three pages at most. Replace each prompt with your answer. Short and specific beats long.
 
-## 1. What changed from the plan of 9 November
+## 1. What changed from your plan
 
-What you proposed, what you found when you read this codebase, and what you built instead.
+What `PLAN.md` proposed, what you found when you read this codebase, and what you built instead.
 
 ## 2. Who gets contacted, and why
 
@@ -40,4 +40,4 @@ What you left out, and what you would do next with another week.
 
 ## 10. Tools
 
-Which AI coding tools you used and how you checked what they produced.
+How you checked what your AI tools produced, and one thing a tool got wrong and how you noticed. The numbers go in `AI_USAGE.md`.
