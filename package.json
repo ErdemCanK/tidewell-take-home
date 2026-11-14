@@ -1,0 +1,26 @@
+{
+  "name": "tidewell-take-home",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "setup": "prisma db push && tsx prisma/seed.ts",
+    "setup:scale": "prisma db push && tsx prisma/seed.ts --scale 1000",
+    "job:reminders": "tsx src/controllers/jobs.ts reminders",
+    "coordinator": "tsx src/controllers/coordinator.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "prisma": "6.19.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0"
+  }
+}

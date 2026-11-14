@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Every human in the system. `role` is one of:
+//   RESIDENT | COORDINATOR | PROVIDER_STAFF | ADMIN
+model Person {
+  id   String @id
+  role String
+
+  // Encrypted at rest (AES-256-GCM, see src/lib/crypto.ts). Format: iv:tag:ciphertext
+  nameEncrypted  String
+  emailEncrypted String?
+  emailHash      String? @unique
+
+  area      String
+  birthYear Int?
+  isActive  Boolean @default(true)
+
+  // Coordinators only, e.g. "Mon-Fri 09:00-17:00" or "Tue-Thu 10:00-15:00". Europe/London.
+  workingHours String?
+
+  // Consent and preferences. Residents set these themselves at sign-up.
+  aiMatchingConsent          Boolean @default(false)
+  thirdPartyProcessingConsent Boolean @default(false)
+  emailNotificationsEnabled  Boolean @default(true)
+
+  // RESIDENT -> the coordinator whose caseload they are on.
+  coordinatorId String?
+  coordinator   Person?  @relation("Caseload", fields: [coordinatorId], references: [id])
+  caseload      Person[] @relation("Caseload")
+
+  // PROVIDER_STAFF -> the provider they work for.
+  providerId String?
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  needs         Need[]
+  referrals     Referral[]            @relation("ResidentReferrals")
+  participating ReferralParticipant[]
+  reminderLogs  ReminderLog[]
+
+  createdAt DateTime
+
+  @@index([role])
+  @@index([coordinatorId])
+}
+
+model Provider {
+  id       String @id
+  name     String
+  category String
+  area     String
+
+  staff     Person[]
+  offers    Offer[]
+  referrals Referral[]
+}
+
+// What a resident needs help with. `note` is the resident's own words and is
+// the most sensitive field in the system.
+//   category: MOBILITY | FOOD | MONEY_ADVICE | HOME_REPAIRS | COMPANIONSHIP | DIGITAL_HELP | RESPITE
+//   status:   OPEN | MET | WITHDRAWN
+model Need {
+  id         String @id
+  residentId String
+  resident   Person @relation(fields: [residentId], references: [id])
+  category   String
+  note       String
+  status     String @default("OPEN")
+  createdAt  DateTime
+
+  referrals Referral[]
+
+  @@index([residentId])
+  @@index([category, status])
+}
+
+// A post from a provider. Public once PUBLISHED.
+//   status: PENDING | PUBLISHED | REJECTED
+//   categories: comma-separated Need categories, chosen by the provider
+model Offer {
+  id          String    @id
+  providerId  String
+  provider    Provider  @relation(fields: [providerId], references: [id])
+  title       String
+  body        String
+  categories  String
+  area        String
+  status      String    @default("PENDING")
+  publishedAt DateTime?
+  createdAt   DateTime
+
+  @@index([status, publishedAt])
+}
+
+// An introduction between a resident and a provider.
+//   status:  OPEN | CLOSED
+//   outcome: NEED_MET | STILL_WORKING | NO_LONGER_NEEDED | NO_RESPONSE (set when closed)
+model Referral {
+  id         String   @id
+  needId     String
+  need       Need     @relation(fields: [needId], references: [id])
+  residentId String
+  resident   Person   @relation("ResidentReferrals", fields: [residentId], references: [id])
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id])
+
+  status   String    @default("OPEN")
+  outcome  String?
+  threadId String    @unique
+  openedAt DateTime
+  closedAt DateTime?
+
+  participants ReferralParticipant[]
+  reminderLogs ReminderLog[]
+  adminFlags   AdminFlag[]
+
+  @@index([status])
+}
+
+model ReferralParticipant {
+  referralId String
+  referral   Referral @relation(fields: [referralId], references: [id])
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id])
+
+  @@id([referralId, personId])
+}
+
+model Message {
+  id         String   @id
+  referralId String
+  senderId   String
+  body       String
+  sentAt     DateTime
+
+  @@index([referralId, sentAt])
+}
+
+// One row per reminder email sent by src/jobs/silent-referral-reminders.ts.
+//   stage: DAY_5 | DAY_10
+// `silenceStartedAt` identifies the silent period, so a referral that goes
+// quiet a second time is reminded again.
+model ReminderLog {
+  id               String   @id @default(cuid())
+  referralId       String
+  referral         Referral @relation(fields: [referralId], references: [id])
+  personId         String
+  person           Person   @relation(fields: [personId], references: [id])
+  stage            String
+  silenceStartedAt DateTime
+  sentAt           DateTime
+
+  @@unique([referralId, personId, stage, silenceStartedAt])
+  @@index([referralId, stage, silenceStartedAt])
+}
+
+// Raised for the admin team when a referral has been silent for 14 days.
+model AdminFlag {
+  id               String    @id @default(cuid())
+  referralId       String
+  referral         Referral  @relation(fields: [referralId], references: [id])
+  reason           String
+  silenceStartedAt DateTime
+  createdAt        DateTime
+  resolvedAt       DateTime?
+
+  @@unique([referralId, silenceStartedAt])
+}
